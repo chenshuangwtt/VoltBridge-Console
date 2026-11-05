@@ -1,0 +1,41 @@
+{
+  "name": "voltbridge-console",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "vue-tsc -b && vite build",
+    "preview": "vite preview --host 0.0.0.0",
+    "typecheck": "vue-tsc -b --pretty false",
+    "lint": "eslint src/api src/main.ts scripts vite.config.ts",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "api:pull": "node scripts/pull-openapi.mjs",
+    "api:generate": "openapi-typescript openapi/voltbridge-openapi.json -o src/api/generated/voltbridge-schema.d.ts",
+    "api:sync": "npm run api:pull && npm run api:generate"
+  },
+  "dependencies": {
+    "@tanstack/vue-query": "^5.106.1",
+    "element-plus": "^2.14.7",
+    "openapi-fetch": "^0.17.0",
+    "vue": "^3.5.44",
+    "vue-router": "^4.6.4"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^24.19.2",
+    "@vitejs/plugin-vue": "^6.0.10",
+    "@vue/test-utils": "^2.5.1",
+    "@vue/tsconfig": "^0.9.1",
+    "eslint": "^10.14.0",
+    "eslint-plugin-vue": "^10.12.0",
+    "jsdom": "^29.1.1",
+    "openapi-typescript": "^7.13.0",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.72.1",
+    "vite": "^8.3.6",
+    "vitest": "^5.1.0",
+    "vue-tsc": "^3.3.14"
+  }
+}
