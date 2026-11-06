@@ -4,6 +4,26 @@
  */
 
 export interface paths {
+    "/api/tenants/{tenantId}/fallback-tariff/revisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Schedule a fallback price revision
+         * @description Atomically closes the current FALLBACK revision at switchAt and creates the next all-day FIXED revision. The role, currency, timezone, and full-day period are system controlled.
+         */
+        post: operations["createRevision"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/tariffs": {
         parameters: {
             query?: never;
@@ -11,14 +31,54 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List tenant tariffs */
+        /** List tenant tariff revisions */
         get: operations["list"];
         put?: never;
         /**
-         * Create a fixed-rate tariff
-         * @description Creates a tariff with separate energy and service fees. Tariff edits use a new plan; existing billing records retain their pricing snapshot.
+         * Create a scheduled tariff plan
+         * @description Creates a SCHEDULED draft tariff whose periods cover the complete local day. FALLBACK tariffs are system initialized and cannot be created through this endpoint.
          */
         post: operations["create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/tariffs/{tariffPlanId}/revisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create the next scheduled tariff revision
+         * @description Creates an immutable SCHEDULED draft revision in the source family. FALLBACK revisions must use the tenant fallback revision endpoint.
+         */
+        post: operations["createRevision_1"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/tariffs/{tariffPlanId}/retire": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Retire a scheduled tariff revision
+         * @description Retires an ACTIVE SCHEDULED tariff. When no SCHEDULED tariff matches a subsequent transaction, the tenant FALLBACK tariff is resolved automatically. Historical transactions still resolve the revision that covered their start time. FALLBACK tariffs cannot be retired through this endpoint.
+         */
+        post: operations["retire"];
         delete?: never;
         options?: never;
         head?: never;
@@ -34,7 +94,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Activate a tariff */
+        /**
+         * Activate a tariff revision
+         * @description Activates a SCHEDULED draft and fails if its effective range overlaps another ACTIVE SCHEDULED tariff for the same tenant. Effective ranges are left-closed and right-open.
+         */
         post: operations["activate"];
         delete?: never;
         options?: never;
@@ -182,6 +245,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/tenants/{tenantId}/fallback-tariff": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the fallback tariff
+         * @description Returns the FALLBACK revision covering effectiveAt, or platform current time when effectiveAt is omitted.
+         */
+        get: operations["get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/tariffs/{tariffPlanId}": {
         parameters: {
             query?: never;
@@ -189,11 +272,15 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get a tariff */
+        /** Get a tariff revision */
         get: operations["find_1"];
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * Delete a draft tariff revision
+         * @description Only DRAFT tariffs can be deleted. ACTIVE and RETIRED tariff plans are retained for lifecycle and historical billing integrity.
+         */
+        delete: operations["delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -208,7 +295,7 @@ export interface paths {
         };
         /**
          * Get a device
-         * @description Returns the registered device and its protocol configuration.
+         * @description Returns stable business status separately from live device and connector runtime state.
          */
         get: operations["find_2"];
         put?: never;
@@ -248,7 +335,7 @@ export interface paths {
         };
         /**
          * Get a billing record
-         * @description Returns the fixed-rate MVP energy fee, service fee, total, line items, tariff reference and immutable pricing snapshot.
+         * @description Returns the calculated energy fee, service fee, total, line items, tariff revision and immutable pricing snapshot.
          */
         get: operations["find_4"];
         put?: never;
@@ -280,24 +367,12 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        /** @description Fixed-rate tariff request */
-        CreateTariffRequest: {
-            /** Format: uuid */
-            tenantId: string;
-            name: string;
-            currency: string;
+        /** @description Price and effective switch instant for a new fallback revision */
+        CreateFallbackTariffRevisionRequest: {
+            /** Format: date-time */
+            switchAt: string;
             energyPricePerKwh: number;
             serviceFeePerKwh: number;
-            /** Format: date-time */
-            effectiveFrom: string;
-            /** Format: date-time */
-            effectiveTo?: string;
-        };
-        ApiResponse: {
-            success?: boolean;
-            code?: string;
-            message?: string;
-            data?: unknown;
         };
         ApiResponseTariffPlanView: {
             success?: boolean;
@@ -305,24 +380,89 @@ export interface components {
             message?: string;
             data?: components["schemas"]["TariffPlanView"];
         };
-        /** @description Tariff plan with fixed energy and service fees */
+        TariffPeriodView: {
+            /** Format: int32 */
+            sequenceNo?: number;
+            periodType?: string;
+            /** Format: int32 */
+            startMinute?: number;
+            /** Format: int32 */
+            endMinute?: number;
+            energyPricePerKwh?: number;
+            serviceFeePerKwh?: number;
+        };
+        /** @description Versioned tariff plan and its complete daily periods */
         TariffPlanView: {
             /** Format: uuid */
             id?: string;
             /** Format: uuid */
+            familyId?: string;
+            /** Format: int32 */
+            revision?: number;
+            /** Format: uuid */
             tenantId?: string;
+            /**
+             * @description FALLBACK is the system-managed fixed tariff used when no scheduled tariff matches. SCHEDULED is an operator-managed fixed or time-of-use tariff with effective-date scheduling.
+             * @enum {string}
+             */
+            role?: "FALLBACK" | "SCHEDULED";
             name?: string;
             currency?: string;
             pricingType?: string;
-            energyPricePerKwh?: number;
-            serviceFeePerKwh?: number;
+            timezone?: string;
             /** Format: date-time */
             effectiveFrom?: string;
             /** Format: date-time */
             effectiveTo?: string;
             status?: string;
+            periods?: components["schemas"]["TariffPeriodView"][];
             /** Format: int64 */
             version?: number;
+        };
+        /** @description Create a fixed or time-of-use tariff plan */
+        CreateTariffPlanRequest: {
+            /** Format: uuid */
+            tenantId: string;
+            name: string;
+            currency: string;
+            /** @enum {string} */
+            pricingType: "FIXED" | "TIME_OF_USE";
+            timezone: string;
+            /** Format: date-time */
+            effectiveFrom: string;
+            /** Format: date-time */
+            effectiveTo?: string;
+            periods: components["schemas"]["TariffPeriodRequest"][];
+        };
+        /** @description A price period in local-day minutes */
+        TariffPeriodRequest: {
+            /** @enum {string} */
+            periodType: "PEAK" | "FLAT" | "VALLEY";
+            /** Format: int32 */
+            startMinute: number;
+            /** Format: int32 */
+            endMinute: number;
+            energyPricePerKwh: number;
+            serviceFeePerKwh: number;
+        };
+        ApiResponse: {
+            success?: boolean;
+            code?: string;
+            message?: string;
+            data?: unknown;
+        };
+        /** @description Create a revision in the source tariff family */
+        CreateTariffRevisionRequest: {
+            name: string;
+            currency: string;
+            /** @enum {string} */
+            pricingType: "FIXED" | "TIME_OF_USE";
+            timezone: string;
+            /** Format: date-time */
+            effectiveFrom: string;
+            /** Format: date-time */
+            effectiveTo?: string;
+            periods: components["schemas"]["TariffPeriodRequest"][];
         };
         /** @description Optional target clock time; the server time is used when absent */
         TimeSyncRequest: {
@@ -455,6 +595,24 @@ export interface components {
             message?: string;
             data?: components["schemas"]["DeviceView"];
         };
+        /** @description Latest reported runtime state for a connector */
+        ConnectorRuntimeView: {
+            /** Format: int32 */
+            connectorNo?: number;
+            /** @enum {string} */
+            runtimeStatus?: "AVAILABLE" | "PLUGGED" | "CHARGING" | "CHARGE_COMPLETE" | "FAULT" | "RESERVED" | "UNAVAILABLE" | "UNKNOWN";
+            /** Format: date-time */
+            changedAt?: string;
+            /** Format: date-time */
+            lastReportedAt?: string;
+        };
+        /** @description Operations implemented by the device protocol */
+        DeviceOperationCapabilitiesView: {
+            startCharging?: boolean;
+            stopCharging?: boolean;
+            timeSync?: boolean;
+            reset?: boolean;
+        };
         /** @description Platform device representation */
         DeviceView: {
             /** Format: uuid */
@@ -467,7 +625,14 @@ export interface components {
             deviceName?: string;
             protocol?: string;
             protocolVersion?: string;
-            status?: string;
+            /** @enum {string} */
+            businessStatus?: "ENABLED" | "DISABLED";
+            /** @enum {string} */
+            onlineStatus?: "ONLINE" | "OFFLINE" | "UNKNOWN";
+            /** Format: date-time */
+            lastSeenAt?: string;
+            connectors?: components["schemas"]["ConnectorRuntimeView"][];
+            capabilities?: components["schemas"]["DeviceOperationCapabilitiesView"];
         };
         ApiResponseCommandView: {
             success?: boolean;
@@ -495,6 +660,12 @@ export interface components {
             failureCode?: string;
             failureReason?: string;
         };
+        ApiResponseVoid: {
+            success?: boolean;
+            code?: string;
+            message?: string;
+            data?: unknown;
+        };
     };
     responses: never;
     parameters: never;
@@ -504,6 +675,32 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    createRevision: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenantId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateFallbackTariffRevisionRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseTariffPlanView"];
+                };
+            };
+        };
+    };
     list: {
         parameters: {
             query: {
@@ -525,7 +722,7 @@ export interface operations {
                     "*/*": components["schemas"]["ApiResponseListTariffPlanView"];
                 };
             };
-            /** @description Invalid tariff request or business rule rejection; response uses the ApiResponse failure envelope */
+            /** @description Invalid tariff or business rule rejection; response uses the ApiResponse failure envelope */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -543,21 +740,9 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        /** @description Fixed-rate tariff parameters */
         requestBody: {
             content: {
-                /**
-                 * @example {
-                 *       "tenantId": "11111111-1111-4111-8111-111111111111",
-                 *       "name": "Standard DC tariff",
-                 *       "currency": "CNY",
-                 *       "energyPricePerKwh": 1,
-                 *       "serviceFeePerKwh": 0.2,
-                 *       "effectiveFrom": "2026-11-05T00:00:00Z",
-                 *       "effectiveTo": null
-                 *     }
-                 */
-                "application/json": components["schemas"]["CreateTariffRequest"];
+                "application/json": components["schemas"]["CreateTariffPlanRequest"];
             };
         };
         responses: {
@@ -570,7 +755,73 @@ export interface operations {
                     "*/*": components["schemas"]["ApiResponseTariffPlanView"];
                 };
             };
-            /** @description Invalid tariff request or business rule rejection; response uses the ApiResponse failure envelope */
+            /** @description Invalid tariff or business rule rejection; response uses the ApiResponse failure envelope */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponse"];
+                };
+            };
+        };
+    };
+    createRevision_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tariffPlanId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateTariffRevisionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseTariffPlanView"];
+                };
+            };
+            /** @description Invalid tariff or business rule rejection; response uses the ApiResponse failure envelope */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponse"];
+                };
+            };
+        };
+    };
+    retire: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tariffPlanId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseTariffPlanView"];
+                };
+            };
+            /** @description Invalid tariff or business rule rejection; response uses the ApiResponse failure envelope */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -601,7 +852,7 @@ export interface operations {
                     "*/*": components["schemas"]["ApiResponseTariffPlanView"];
                 };
             };
-            /** @description Invalid tariff request or business rule rejection; response uses the ApiResponse failure envelope */
+            /** @description Invalid tariff or business rule rejection; response uses the ApiResponse failure envelope */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -866,6 +1117,30 @@ export interface operations {
             };
         };
     };
+    get: {
+        parameters: {
+            query?: {
+                effectiveAt?: string;
+            };
+            header?: never;
+            path: {
+                tenantId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseTariffPlanView"];
+                };
+            };
+        };
+    };
     find_1: {
         parameters: {
             query?: never;
@@ -886,7 +1161,38 @@ export interface operations {
                     "*/*": components["schemas"]["ApiResponseTariffPlanView"];
                 };
             };
-            /** @description Invalid tariff request or business rule rejection; response uses the ApiResponse failure envelope */
+            /** @description Invalid tariff or business rule rejection; response uses the ApiResponse failure envelope */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponse"];
+                };
+            };
+        };
+    };
+    delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tariffPlanId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseVoid"];
+                };
+            };
+            /** @description Invalid tariff or business rule rejection; response uses the ApiResponse failure envelope */
             400: {
                 headers: {
                     [name: string]: unknown;

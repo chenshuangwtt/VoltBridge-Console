@@ -1,6 +1,89 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useQuery } from '@tanstack/vue-query'
-const nav=[['Dashboard','/'],['Devices','/devices'],['Transactions','/transactions'],['Billing','/billing'],['Tariffs','/tariffs']]
-const health=useQuery({queryKey:['health'],queryFn:async()=>{const r=await fetch('/actuator/health');return r.ok?'UP':'DOWN'},retry:false})
+import { useRoute } from 'vue-router'
+
+const route = useRoute()
+const nav = [
+  { label: '仪表盘', path: '/', index: '01' },
+  { label: '设备', path: '/devices', index: '02' },
+  { label: '充电交易', path: '/transactions', index: '03' },
+  { label: '账单', path: '/billing', index: '04' },
+  { label: '资费', path: '/tariffs', index: '05' },
+]
+const section = computed(
+  () =>
+    nav.find(
+      (item) =>
+        item.path === route.path || (item.path !== '/' && route.path.startsWith(`${item.path}/`)),
+    )?.label ?? '运营管理',
+)
+const health = useQuery({
+  queryKey: ['health'],
+  queryFn: async () => {
+    const response = await fetch('/actuator/health')
+    return response.ok ? 'UP' : 'DOWN'
+  },
+  retry: false,
+})
 </script>
-<template><div class="shell"><aside><div class="brand"><span class="logo">V</span><div><b>VoltBridge</b><small>OPERATIONS CONSOLE</small></div></div><nav><RouterLink v-for="n in nav" :key="n[1]" :to="n[1]">{{n[0]}}</RouterLink></nav><div class="side-foot">LIGHTWEIGHT OPERATIONS<br>VoltBridge API · v0.1</div></aside><main><header><div><span class="eyebrow">VOLTBRIDGE / OPERATIONS</span><h1>Operations Console</h1></div><span class="health"><i :class="health.data.value==='UP'?'up':''"></i> Backend {{health.data.value||'UNKNOWN'}}</span></header><RouterView/><footer>VoltBridge Console · Data shown is returned by the backend</footer></main></div></template>
+
+<template>
+  <div class="shell">
+    <aside class="sidebar">
+      <RouterLink class="brand" to="/" aria-label="VoltBridge 运营控制台首页">
+        <span class="brand-mark" aria-hidden="true">VB</span>
+        <span class="brand-copy"><strong>VoltBridge</strong><small>运营控制台</small></span>
+      </RouterLink>
+
+      <div class="sidebar-label">工作区</div>
+      <nav class="primary-nav" aria-label="主导航">
+        <RouterLink
+          v-for="item in nav"
+          :key="item.path"
+          :to="item.path"
+          :exact-active-class="item.path === '/' ? 'is-active' : ''"
+          active-class="is-active"
+        >
+          <span class="nav-index">{{ item.index }}</span>
+          <span>{{ item.label }}</span>
+          <span class="nav-arrow" aria-hidden="true">↗</span>
+        </RouterLink>
+      </nav>
+
+      <div class="sidebar-bottom">
+        <div class="sidebar-caption">运行环境</div>
+        <div class="connection-card">
+          <span class="connection-label">后端连接</span>
+          <strong>{{
+            health.data.value === 'UP'
+              ? '运行正常'
+              : health.data.value === 'DOWN'
+                ? '暂不可用'
+                : '状态未知'
+          }}</strong>
+          <span class="connection-code">{{ health.data.value ?? 'UNKNOWN' }}</span>
+        </div>
+        <div class="sidebar-version">VoltBridge API <span>·</span> v0.1</div>
+      </div>
+    </aside>
+
+    <main class="workspace">
+      <header class="topbar">
+        <div class="topbar-context">
+          <span class="topbar-kicker">运营中心</span>
+          <span class="topbar-divider">/</span>
+          <span>{{ section }}</span>
+        </div>
+        <div class="topbar-meta">
+          <span>VoltBridge Console</span><span class="meta-separator">·</span
+          ><span>数据来自后端</span>
+        </div>
+      </header>
+      <RouterView />
+      <footer class="workspace-footer">
+        <span>VoltBridge Console</span><span>轻量运营与运维工作台</span>
+      </footer>
+    </main>
+  </div>
+</template>

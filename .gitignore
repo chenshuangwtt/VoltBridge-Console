@@ -9,12 +9,17 @@ lerna-debug.log*
 
 node_modules
 dist
+coverage
 dist-ssr
 *.local
+.env
+.env.*
+!.env.example
 
-# Editor directories and files
-.vscode/*
-!.vscode/extensions.json
+# Local coding-agent assets and editor settings
+.agents/
+skills-lock.json
+.vscode/
 .idea
 .DS_Store
 *.suo

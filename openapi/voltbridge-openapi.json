@@ -1,1 +1,1726 @@
-{"openapi":"3.1.0","info":{"title":"VoltBridge API","description":"REST API for device operations, charging transactions, tariffs and billing.","license":{"name":"Apache License 2.0","url":"https://www.apache.org/licenses/LICENSE-2.0"},"version":"0.1.0"},"servers":[{"url":"http://localhost:8080","description":"Generated server url"}],"tags":[{"name":"Billing","description":"Fixed-rate MVP billing records"},{"name":"Commands","description":"Asynchronous DeviceCommand lifecycle queries"},{"name":"Devices","description":"Device lookup and asynchronous remote operations"},{"name":"Tariffs","description":"Fixed-rate MVP tariff management"},{"name":"Charging transactions","description":"Platform-level charging transaction lifecycle and queries"}],"paths":{"/api/tariffs":{"get":{"tags":["Tariffs"],"summary":"List tenant tariffs","operationId":"list","parameters":[{"name":"tenantId","in":"query","description":"Tenant UUID","required":true,"schema":{"type":"string","format":"uuid"}}],"responses":{"200":{"description":"Successful response","content":{"*/*":{"schema":{"$ref":"#/components/schemas/ApiResponseListTariffPlanView"}}}},"400":{"description":"Invalid tariff request or business rule rejection; response uses the ApiResponse failure envelope","content":{"*/*":{"schema":{"$ref":"#/components/schemas/ApiResponse"}}}}}},"post":{"tags":["Tariffs"],"summary":"Create a fixed-rate tariff","description":"Creates a tariff with separate energy and service fees. Tariff edits use a new plan; existing billing records retain their pricing snapshot.","operationId":"create","requestBody":{"description":"Fixed-rate tariff parameters","content":{"application/json":{"schema":{"$ref":"#/components/schemas/CreateTariffRequest"},"example":{"tenantId":"11111111-1111-4111-8111-111111111111","name":"Standard DC tariff","currency":"CNY","energyPricePerKwh":1.0,"serviceFeePerKwh":0.2,"effectiveFrom":"2026-11-05T00:00:00Z","effectiveTo":null}}},"required":true},"responses":{"200":{"description":"Successful response","content":{"*/*":{"schema":{"$ref":"#/components/schemas/ApiResponseTariffPlanView"}}}},"400":{"description":"Invalid tariff request or business rule rejection; response uses the ApiResponse failure envelope","content":{"*/*":{"schema":{"$ref":"#/components/schemas/ApiResponse"}}}}}}},"/api/tariffs/{tariffPlanId}/activate":{"post":{"tags":["Tariffs"],"summary":"Activate a tariff","operationId":"activate","parameters":[{"name":"tariffPlanId","in":"path","required":true,"schema":{"type":"string","format":"uuid"}}],"responses":{"200":{"description":"Successful response","content":{"*/*":{"schema":{"$ref":"#/components/schemas/ApiResponseTariffPlanView"}}}},"400":{"description":"Invalid tariff request or business rule rejection; response uses the ApiResponse failure envelope","content":{"*/*":{"schema":{"$ref":"#/components/schemas/ApiResponse"}}}}}}},"/api/devices/{deviceCode}/commands/time-sync":{"post":{"tags":["Devices"],"summary":"Request device time synchronization","description":"Creates a time synchronization command; targetTime defaults to the server time when omitted.","operationId":"synchronizeTime","parameters":[{"name":"deviceCode","in":"path","required":true,"schema":{"type":"string"}}],"requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/TimeSyncRequest"}}}},"responses":{"200":{"description":"Successful response","content":{"*/*":{"schema":{"$ref":"#/components/schemas/ApiResponseCommandCreatedView"}}}},"400":{"description":"Invalid input or business rule rejection; response uses the ApiResponse failure envelope","content":{"*/*":{"schema":{"$ref":"#/components/schemas/ApiResponse"}}}}}}},"/api/devices/{deviceCode}/commands/stop-charging":{"post":{"tags":["Devices"],"summary":"Request remote stop","description":"Creates and dispatches a stop command. Device acceptance does not mean the charging transaction is finalized; poll the command and transaction resources.","operationId":"stop","parameters":[{"name":"deviceCode","in":"path","required":true,"schema":{"type":"string"}}],"requestBody":{"description":"Connector to stop","content":{"application/json":{"schema":{"$ref":"#/components/schemas/StopChargingRequest"},"example":{"connectorNo":"01"}}},"required":true},"responses":{"200":{"description":"Successful response","content":{"*/*":{"schema":{"$ref":"#/components/schemas/ApiResponseCommandCreatedView"}}}},"400":{"description":"Invalid input or business rule rejection; response uses the ApiResponse failure envelope","content":{"*/*":{"schema":{"$ref":"#/components/schemas/ApiResponse"}}}}}}},"/api/devices/{deviceCode}/commands/start-charging":{"post":{"tags":["Devices"],"summary":"Request remote start","description":"Creates and dispatches a start command. A successful response means the command was created; charging may not have started yet. Poll GET /api/commands/{commandId} for its lifecycle.","operationId":"start","parameters":[{"name":"deviceCode","in":"path","required":true,"schema":{"type":"string"}}],"requestBody":{"description":"Charging start parameters","content":{"application/json":{"schema":{"$ref":"#/components/schemas/StartChargingRequest"},"example":{"connectorNo":"01","limitAmount":50.0,"logicalCardNo":"1234567890123456","physicalCardNo":"1234567890123456","businessRef":"fleet-2026-001"}}},"required":true},"responses":{"200":{"description":"Successful response","content":{"*/*":{"schema":{"$ref":"#/components/schemas/ApiResponseCommandCreatedView"}}}},"400":{"description":"Invalid input or business rule rejection; response uses the ApiResponse failure envelope","content":{"*/*":{"schema":{"$ref":"#/components/schemas/ApiResponse"}}}}}}},"/api/devices/{deviceCode}/commands/reset":{"post":{"tags":["Devices"],"summary":"Request device reset","description":"Creates a device reset command. whenIdle defaults to false when the body is omitted.","operationId":"reset","parameters":[{"name":"deviceCode","in":"path","required":true,"schema":{"type":"string"}}],"requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ResetDeviceRequest"}}}},"responses":{"200":{"description":"Successful response","content":{"*/*":{"schema":{"$ref":"#/components/schemas/ApiResponseCommandCreatedView"}}}},"400":{"description":"Invalid input or business rule rejection; response uses the ApiResponse failure envelope","content":{"*/*":{"schema":{"$ref":"#/components/schemas/ApiResponse"}}}}}}},"/api/billing-records/by-transaction/{transactionId}/retry":{"post":{"tags":["Billing"],"summary":"Retry final billing","description":"Retries billing for a completed transaction. If the record already exists, it is returned unchanged.","operationId":"retry","parameters":[{"name":"transactionId","in":"path","required":true,"schema":{"type":"string","format":"uuid"}}],"responses":{"200":{"description":"Successful response","content":{"*/*":{"schema":{"$ref":"#/components/schemas/ApiResponseBillingRecordView"}}}},"400":{"description":"Invalid identifier or business rejection; response uses the ApiResponse failure envelope","content":{"*/*":{"schema":{"$ref":"#/components/schemas/ApiResponse"}}}}}}},"/api/transactions":{"get":{"tags":["Charging transactions"],"summary":"Search charging transactions","description":"Filters are optional and combined with AND.","operationId":"search","parameters":[{"name":"deviceCode","in":"query","description":"Platform device code","required":false,"schema":{"type":"string"}},{"name":"connectorNo","in":"query","description":"Connector number","required":false,"schema":{"type":"integer","format":"int32"}},{"name":"status","in":"query","description":"Platform lifecycle state","required":false,"schema":{"type":"string","enum":["STARTING","CHARGING","ENDING","COMPLETED","START_FAILED","ABORTED"]}}],"responses":{"200":{"description":"Successful response","content":{"*/*":{"schema":{"$ref":"#/components/schemas/ApiResponseListTransactionView"}}}},"400":{"description":"Invalid filter or business rejection; response uses the ApiResponse failure envelope","content":{"*/*":{"schema":{"$ref":"#/components/schemas/ApiResponse"}}}}}}},"/api/transactions/{transactionId}":{"get":{"tags":["Charging transactions"],"summary":"Get a charging transaction","description":"Returns the generic platform transaction lifecycle; protocol-specific details remain in additionalInfo.","operationId":"find","parameters":[{"name":"transactionId","in":"path","required":true,"schema":{"type":"string","format":"uuid"}}],"responses":{"200":{"description":"Successful response","content":{"*/*":{"schema":{"$ref":"#/components/schemas/ApiResponseTransactionView"}}}},"400":{"description":"Invalid filter or business rejection; response uses the ApiResponse failure envelope","content":{"*/*":{"schema":{"$ref":"#/components/schemas/ApiResponse"}}}}}}},"/api/tariffs/{tariffPlanId}":{"get":{"tags":["Tariffs"],"summary":"Get a tariff","operationId":"find_1","parameters":[{"name":"tariffPlanId","in":"path","required":true,"schema":{"type":"string","format":"uuid"}}],"responses":{"200":{"description":"Successful response","content":{"*/*":{"schema":{"$ref":"#/components/schemas/ApiResponseTariffPlanView"}}}},"400":{"description":"Invalid tariff request or business rule rejection; response uses the ApiResponse failure envelope","content":{"*/*":{"schema":{"$ref":"#/components/schemas/ApiResponse"}}}}}}},"/api/devices/{deviceCode}":{"get":{"tags":["Devices"],"summary":"Get a device","description":"Returns the registered device and its protocol configuration.","operationId":"find_2","parameters":[{"name":"deviceCode","in":"path","required":true,"schema":{"type":"string"}}],"responses":{"200":{"description":"Successful response","content":{"*/*":{"schema":{"$ref":"#/components/schemas/ApiResponseDeviceView"}}}},"400":{"description":"Invalid input or business rule rejection; response uses the ApiResponse failure envelope","content":{"*/*":{"schema":{"$ref":"#/components/schemas/ApiResponse"}}}}}}},"/api/commands/{commandId}":{"get":{"tags":["Commands"],"summary":"Get a device command","description":"Returns command state and acknowledgement timestamps. SENT means the command was written to the transport; it does not mean the device completed it.","operationId":"find_3","parameters":[{"name":"commandId","in":"path","required":true,"schema":{"type":"string","format":"uuid"}}],"responses":{"200":{"description":"Successful response","content":{"*/*":{"schema":{"$ref":"#/components/schemas/ApiResponseCommandView"}}}},"400":{"description":"Invalid command identifier or business rejection; response uses the ApiResponse failure envelope","content":{"*/*":{"schema":{"$ref":"#/components/schemas/ApiResponse"}}}}}}},"/api/billing-records/{billingRecordId}":{"get":{"tags":["Billing"],"summary":"Get a billing record","description":"Returns the fixed-rate MVP energy fee, service fee, total, line items, tariff reference and immutable pricing snapshot.","operationId":"find_4","parameters":[{"name":"billingRecordId","in":"path","required":true,"schema":{"type":"string","format":"uuid"}}],"responses":{"200":{"description":"Successful response","content":{"*/*":{"schema":{"$ref":"#/components/schemas/ApiResponseBillingRecordView"}}}},"400":{"description":"Invalid identifier or business rejection; response uses the ApiResponse failure envelope","content":{"*/*":{"schema":{"$ref":"#/components/schemas/ApiResponse"}}}}}}},"/api/billing-records/by-transaction/{transactionId}":{"get":{"tags":["Billing"],"summary":"Get a billing record by transaction","operationId":"findByTransaction","parameters":[{"name":"transactionId","in":"path","required":true,"schema":{"type":"string","format":"uuid"}}],"responses":{"200":{"description":"Successful response","content":{"*/*":{"schema":{"$ref":"#/components/schemas/ApiResponseBillingRecordView"}}}},"400":{"description":"Invalid identifier or business rejection; response uses the ApiResponse failure envelope","content":{"*/*":{"schema":{"$ref":"#/components/schemas/ApiResponse"}}}}}}}},"components":{"schemas":{"CreateTariffRequest":{"type":"object","description":"Fixed-rate tariff request","properties":{"tenantId":{"type":"string","format":"uuid"},"name":{"type":"string","minLength":1},"currency":{"type":"string","minLength":1},"energyPricePerKwh":{"type":"number","minimum":0.00},"serviceFeePerKwh":{"type":"number","minimum":0.00},"effectiveFrom":{"type":"string","format":"date-time"},"effectiveTo":{"type":"string","format":"date-time"}},"required":["currency","effectiveFrom","energyPricePerKwh","name","serviceFeePerKwh","tenantId"]},"ApiResponse":{"type":"object","properties":{"success":{"type":"boolean"},"code":{"type":"string"},"message":{"type":"string"},"data":{}}},"ApiResponseTariffPlanView":{"type":"object","properties":{"success":{"type":"boolean"},"code":{"type":"string"},"message":{"type":"string"},"data":{"$ref":"#/components/schemas/TariffPlanView"}}},"TariffPlanView":{"type":"object","description":"Tariff plan with fixed energy and service fees","properties":{"id":{"type":"string","format":"uuid"},"tenantId":{"type":"string","format":"uuid"},"name":{"type":"string"},"currency":{"type":"string"},"pricingType":{"type":"string"},"energyPricePerKwh":{"type":"number"},"serviceFeePerKwh":{"type":"number"},"effectiveFrom":{"type":"string","format":"date-time"},"effectiveTo":{"type":"string","format":"date-time"},"status":{"type":"string"},"version":{"type":"integer","format":"int64"}}},"TimeSyncRequest":{"type":"object","description":"Optional target clock time; the server time is used when absent","properties":{"targetTime":{"type":"string","format":"date-time"}}},"ApiResponseCommandCreatedView":{"type":"object","properties":{"success":{"type":"boolean"},"code":{"type":"string"},"message":{"type":"string"},"data":{"$ref":"#/components/schemas/CommandCreatedView"}}},"CommandCreatedView":{"type":"object","description":"Identifier of the created asynchronous command","properties":{"commandId":{"type":"string","format":"uuid"}}},"StopChargingRequest":{"type":"object","description":"Remote stop request","properties":{"connectorNo":{"type":"string","minLength":1,"pattern":"\\d{1,2}"}},"required":["connectorNo"]},"StartChargingRequest":{"type":"object","description":"Remote start request","properties":{"connectorNo":{"type":"string","minLength":1,"pattern":"\\d{1,2}"},"limitAmount":{"type":"number","maximum":21474836.47,"minimum":0.00},"logicalCardNo":{"type":"string","pattern":"\\d{1,16}"},"physicalCardNo":{"type":"string","pattern":"\\d{1,18}"},"businessRef":{"type":"string","maxLength":128,"minLength":0}},"required":["connectorNo","limitAmount"]},"ResetDeviceRequest":{"type":"object","description":"Reset behavior","properties":{"whenIdle":{"type":"boolean"}}},"ApiResponseBillingRecordView":{"type":"object","properties":{"success":{"type":"boolean"},"code":{"type":"string"},"message":{"type":"string"},"data":{"$ref":"#/components/schemas/BillingRecordView"}}},"BillingRecordView":{"type":"object","description":"Fixed-rate MVP billing result; FINALIZED records are immutable","properties":{"billingRecordId":{"type":"string","format":"uuid"},"transactionId":{"type":"string","format":"uuid"},"status":{"type":"string"},"currency":{"type":"string"},"energyKwh":{"type":"number"},"energyFee":{"type":"number"},"serviceFee":{"type":"number"},"subtotalAmount":{"type":"number"},"discountAmount":{"type":"number"},"totalAmount":{"type":"number"},"tariffPlanId":{"type":"string","format":"uuid"},"pricingSnapshot":{"type":"string"},"lineItems":{"type":"array","items":{"$ref":"#/components/schemas/LineItemView"}},"chargingStartedAt":{"type":"string","format":"date-time"},"chargingEndedAt":{"type":"string","format":"date-time"},"finalizedAt":{"type":"string","format":"date-time"}}},"LineItemView":{"type":"object","properties":{"type":{"type":"string"},"description":{"type":"string"},"quantity":{"type":"number"},"unit":{"type":"string"},"unitPrice":{"type":"number"},"amount":{"type":"number"}}},"ApiResponseListTransactionView":{"type":"object","properties":{"success":{"type":"boolean"},"code":{"type":"string"},"message":{"type":"string"},"data":{"type":"array","items":{"$ref":"#/components/schemas/TransactionView"}}}},"TransactionView":{"type":"object","description":"ChargingTransaction lifecycle state: STARTING, CHARGING, ENDING, COMPLETED, START_FAILED, or ABORTED","properties":{"id":{"type":"string","format":"uuid"},"deviceCode":{"type":"string"},"connectorNo":{"type":"integer","format":"int32"},"protocol":{"type":"string"},"protocolTransactionId":{"type":"string"},"businessRef":{"type":"string"},"status":{"type":"string"},"startedAt":{"type":"string","format":"date-time"},"endedAt":{"type":"string","format":"date-time"},"startMeterKwh":{"type":"number"},"endMeterKwh":{"type":"number"},"energyKwh":{"type":"number"},"startSoc":{"type":"integer","format":"int32"},"latestSoc":{"type":"integer","format":"int32"},"endSoc":{"type":"integer","format":"int32"},"chargingDurationSeconds":{"type":"integer","format":"int64"},"totalAmount":{"type":"number"},"stopCategory":{"type":"string"},"rawStopCode":{"type":"integer","format":"int32"},"vehicleVin":{"type":"string"},"startMethod":{"type":"string"},"finalRecordReceivedAt":{"type":"string","format":"date-time"},"additionalInfo":{"type":"string"}}},"ApiResponseTransactionView":{"type":"object","properties":{"success":{"type":"boolean"},"code":{"type":"string"},"message":{"type":"string"},"data":{"$ref":"#/components/schemas/TransactionView"}}},"ApiResponseListTariffPlanView":{"type":"object","properties":{"success":{"type":"boolean"},"code":{"type":"string"},"message":{"type":"string"},"data":{"type":"array","items":{"$ref":"#/components/schemas/TariffPlanView"}}}},"ApiResponseDeviceView":{"type":"object","properties":{"success":{"type":"boolean"},"code":{"type":"string"},"message":{"type":"string"},"data":{"$ref":"#/components/schemas/DeviceView"}}},"DeviceView":{"type":"object","description":"Platform device representation","properties":{"id":{"type":"string","format":"uuid"},"tenantId":{"type":"string","format":"uuid"},"stationId":{"type":"string","format":"uuid"},"deviceCode":{"type":"string"},"deviceName":{"type":"string"},"protocol":{"type":"string"},"protocolVersion":{"type":"string"},"status":{"type":"string"}}},"ApiResponseCommandView":{"type":"object","properties":{"success":{"type":"boolean"},"code":{"type":"string"},"message":{"type":"string"},"data":{"$ref":"#/components/schemas/CommandView"}}},"CommandView":{"type":"object","description":"DeviceCommand status: CREATED, SENT, ACKED, EXECUTING, SUCCEEDED, FAILED, or TIMEOUT","properties":{"commandId":{"type":"string","format":"uuid"},"deviceCode":{"type":"string"},"connectorNo":{"type":"string"},"type":{"type":"string"},"status":{"type":"string"},"businessRef":{"type":"string"},"createdAt":{"type":"string","format":"date-time"},"sentAt":{"type":"string","format":"date-time"},"ackedAt":{"type":"string","format":"date-time"},"completedAt":{"type":"string","format":"date-time"},"failureCode":{"type":"string"},"failureReason":{"type":"string"}}}}}}
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "VoltBridge API",
+    "description": "REST API for device operations, charging transactions, tariffs and billing.",
+    "license": {
+      "name": "Apache License 2.0",
+      "url": "https://www.apache.org/licenses/LICENSE-2.0"
+    },
+    "version": "0.1.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8080",
+      "description": "Generated server url"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Tariffs",
+      "description": "Versioned fixed-rate and time-of-use tariff management"
+    },
+    {
+      "name": "Billing",
+      "description": "Fixed-rate MVP billing records"
+    },
+    {
+      "name": "Commands",
+      "description": "Asynchronous DeviceCommand lifecycle queries"
+    },
+    {
+      "name": "Devices",
+      "description": "Device lookup and asynchronous remote operations"
+    },
+    {
+      "name": "Charging transactions",
+      "description": "Platform-level charging transaction lifecycle and queries"
+    },
+    {
+      "name": "Fallback tariff",
+      "description": "System-managed fixed tariff used when no scheduled tariff matches."
+    }
+  ],
+  "paths": {
+    "/api/tenants/{tenantId}/fallback-tariff/revisions": {
+      "post": {
+        "tags": ["Fallback tariff"],
+        "summary": "Schedule a fallback price revision",
+        "description": "Atomically closes the current FALLBACK revision at switchAt and creates the next all-day FIXED revision. The role, currency, timezone, and full-day period are system controlled.",
+        "operationId": "createRevision",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateFallbackTariffRevisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseTariffPlanView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tariffs": {
+      "get": {
+        "tags": ["Tariffs"],
+        "summary": "List tenant tariff revisions",
+        "operationId": "list",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "query",
+            "description": "Tenant UUID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListTariffPlanView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid tariff or business rule rejection; response uses the ApiResponse failure envelope",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Tariffs"],
+        "summary": "Create a scheduled tariff plan",
+        "description": "Creates a SCHEDULED draft tariff whose periods cover the complete local day. FALLBACK tariffs are system initialized and cannot be created through this endpoint.",
+        "operationId": "create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTariffPlanRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseTariffPlanView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid tariff or business rule rejection; response uses the ApiResponse failure envelope",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tariffs/{tariffPlanId}/revisions": {
+      "post": {
+        "tags": ["Tariffs"],
+        "summary": "Create the next scheduled tariff revision",
+        "description": "Creates an immutable SCHEDULED draft revision in the source family. FALLBACK revisions must use the tenant fallback revision endpoint.",
+        "operationId": "createRevision_1",
+        "parameters": [
+          {
+            "name": "tariffPlanId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTariffRevisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseTariffPlanView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid tariff or business rule rejection; response uses the ApiResponse failure envelope",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tariffs/{tariffPlanId}/retire": {
+      "post": {
+        "tags": ["Tariffs"],
+        "summary": "Retire a scheduled tariff revision",
+        "description": "Retires an ACTIVE SCHEDULED tariff. When no SCHEDULED tariff matches a subsequent transaction, the tenant FALLBACK tariff is resolved automatically. Historical transactions still resolve the revision that covered their start time. FALLBACK tariffs cannot be retired through this endpoint.",
+        "operationId": "retire",
+        "parameters": [
+          {
+            "name": "tariffPlanId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseTariffPlanView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid tariff or business rule rejection; response uses the ApiResponse failure envelope",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tariffs/{tariffPlanId}/activate": {
+      "post": {
+        "tags": ["Tariffs"],
+        "summary": "Activate a tariff revision",
+        "description": "Activates a SCHEDULED draft and fails if its effective range overlaps another ACTIVE SCHEDULED tariff for the same tenant. Effective ranges are left-closed and right-open.",
+        "operationId": "activate",
+        "parameters": [
+          {
+            "name": "tariffPlanId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseTariffPlanView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid tariff or business rule rejection; response uses the ApiResponse failure envelope",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/devices/{deviceCode}/commands/time-sync": {
+      "post": {
+        "tags": ["Devices"],
+        "summary": "Request device time synchronization",
+        "description": "Creates a time synchronization command; targetTime defaults to the server time when omitted.",
+        "operationId": "synchronizeTime",
+        "parameters": [
+          {
+            "name": "deviceCode",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TimeSyncRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseCommandCreatedView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input or business rule rejection; response uses the ApiResponse failure envelope",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/devices/{deviceCode}/commands/stop-charging": {
+      "post": {
+        "tags": ["Devices"],
+        "summary": "Request remote stop",
+        "description": "Creates and dispatches a stop command. Device acceptance does not mean the charging transaction is finalized; poll the command and transaction resources.",
+        "operationId": "stop",
+        "parameters": [
+          {
+            "name": "deviceCode",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "Connector to stop",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StopChargingRequest"
+              },
+              "example": {
+                "connectorNo": "01"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseCommandCreatedView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input or business rule rejection; response uses the ApiResponse failure envelope",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/devices/{deviceCode}/commands/start-charging": {
+      "post": {
+        "tags": ["Devices"],
+        "summary": "Request remote start",
+        "description": "Creates and dispatches a start command. A successful response means the command was created; charging may not have started yet. Poll GET /api/commands/{commandId} for its lifecycle.",
+        "operationId": "start",
+        "parameters": [
+          {
+            "name": "deviceCode",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "Charging start parameters",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartChargingRequest"
+              },
+              "example": {
+                "connectorNo": "01",
+                "limitAmount": 50,
+                "logicalCardNo": "1234567890123456",
+                "physicalCardNo": "1234567890123456",
+                "businessRef": "fleet-2026-001"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseCommandCreatedView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input or business rule rejection; response uses the ApiResponse failure envelope",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/devices/{deviceCode}/commands/reset": {
+      "post": {
+        "tags": ["Devices"],
+        "summary": "Request device reset",
+        "description": "Creates a device reset command. whenIdle defaults to false when the body is omitted.",
+        "operationId": "reset",
+        "parameters": [
+          {
+            "name": "deviceCode",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResetDeviceRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseCommandCreatedView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input or business rule rejection; response uses the ApiResponse failure envelope",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/billing-records/by-transaction/{transactionId}/retry": {
+      "post": {
+        "tags": ["Billing"],
+        "summary": "Retry final billing",
+        "description": "Retries billing for a completed transaction. If the record already exists, it is returned unchanged.",
+        "operationId": "retry",
+        "parameters": [
+          {
+            "name": "transactionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseBillingRecordView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid identifier or business rejection; response uses the ApiResponse failure envelope",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/transactions": {
+      "get": {
+        "tags": ["Charging transactions"],
+        "summary": "Search charging transactions",
+        "description": "Filters are optional and combined with AND.",
+        "operationId": "search",
+        "parameters": [
+          {
+            "name": "deviceCode",
+            "in": "query",
+            "description": "Platform device code",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "connectorNo",
+            "in": "query",
+            "description": "Connector number",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "description": "Platform lifecycle state",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": ["STARTING", "CHARGING", "ENDING", "COMPLETED", "START_FAILED", "ABORTED"]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListTransactionView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid filter or business rejection; response uses the ApiResponse failure envelope",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/transactions/{transactionId}": {
+      "get": {
+        "tags": ["Charging transactions"],
+        "summary": "Get a charging transaction",
+        "description": "Returns the generic platform transaction lifecycle; protocol-specific details remain in additionalInfo.",
+        "operationId": "find",
+        "parameters": [
+          {
+            "name": "transactionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseTransactionView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid filter or business rejection; response uses the ApiResponse failure envelope",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tenants/{tenantId}/fallback-tariff": {
+      "get": {
+        "tags": ["Fallback tariff"],
+        "summary": "Get the fallback tariff",
+        "description": "Returns the FALLBACK revision covering effectiveAt, or platform current time when effectiveAt is omitted.",
+        "operationId": "get",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "effectiveAt",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseTariffPlanView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tariffs/{tariffPlanId}": {
+      "get": {
+        "tags": ["Tariffs"],
+        "summary": "Get a tariff revision",
+        "operationId": "find_1",
+        "parameters": [
+          {
+            "name": "tariffPlanId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseTariffPlanView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid tariff or business rule rejection; response uses the ApiResponse failure envelope",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Tariffs"],
+        "summary": "Delete a draft tariff revision",
+        "description": "Only DRAFT tariffs can be deleted. ACTIVE and RETIRED tariff plans are retained for lifecycle and historical billing integrity.",
+        "operationId": "delete",
+        "parameters": [
+          {
+            "name": "tariffPlanId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid tariff or business rule rejection; response uses the ApiResponse failure envelope",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/devices/{deviceCode}": {
+      "get": {
+        "tags": ["Devices"],
+        "summary": "Get a device",
+        "description": "Returns stable business status separately from live device and connector runtime state.",
+        "operationId": "find_2",
+        "parameters": [
+          {
+            "name": "deviceCode",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseDeviceView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input or business rule rejection; response uses the ApiResponse failure envelope",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/commands/{commandId}": {
+      "get": {
+        "tags": ["Commands"],
+        "summary": "Get a device command",
+        "description": "Returns command state and acknowledgement timestamps. SENT means the command was written to the transport; it does not mean the device completed it.",
+        "operationId": "find_3",
+        "parameters": [
+          {
+            "name": "commandId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseCommandView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid command identifier or business rejection; response uses the ApiResponse failure envelope",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/billing-records/{billingRecordId}": {
+      "get": {
+        "tags": ["Billing"],
+        "summary": "Get a billing record",
+        "description": "Returns the calculated energy fee, service fee, total, line items, tariff revision and immutable pricing snapshot.",
+        "operationId": "find_4",
+        "parameters": [
+          {
+            "name": "billingRecordId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseBillingRecordView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid identifier or business rejection; response uses the ApiResponse failure envelope",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/billing-records/by-transaction/{transactionId}": {
+      "get": {
+        "tags": ["Billing"],
+        "summary": "Get a billing record by transaction",
+        "operationId": "findByTransaction",
+        "parameters": [
+          {
+            "name": "transactionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseBillingRecordView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid identifier or business rejection; response uses the ApiResponse failure envelope",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "CreateFallbackTariffRevisionRequest": {
+        "type": "object",
+        "description": "Price and effective switch instant for a new fallback revision",
+        "properties": {
+          "switchAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "energyPricePerKwh": {
+            "type": "number",
+            "minimum": 0
+          },
+          "serviceFeePerKwh": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "required": ["energyPricePerKwh", "serviceFeePerKwh", "switchAt"]
+      },
+      "ApiResponseTariffPlanView": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/TariffPlanView"
+          }
+        }
+      },
+      "TariffPeriodView": {
+        "type": "object",
+        "properties": {
+          "sequenceNo": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "periodType": {
+            "type": "string"
+          },
+          "startMinute": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "endMinute": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "energyPricePerKwh": {
+            "type": "number"
+          },
+          "serviceFeePerKwh": {
+            "type": "number"
+          }
+        }
+      },
+      "TariffPlanView": {
+        "type": "object",
+        "description": "Versioned tariff plan and its complete daily periods",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "familyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "tenantId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "role": {
+            "type": "string",
+            "description": "FALLBACK is the system-managed fixed tariff used when no scheduled tariff matches. SCHEDULED is an operator-managed fixed or time-of-use tariff with effective-date scheduling.",
+            "enum": ["FALLBACK", "SCHEDULED"]
+          },
+          "name": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "pricingType": {
+            "type": "string"
+          },
+          "timezone": {
+            "type": "string"
+          },
+          "effectiveFrom": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "effectiveTo": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "type": "string"
+          },
+          "periods": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TariffPeriodView"
+            }
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "CreateTariffPlanRequest": {
+        "type": "object",
+        "description": "Create a fixed or time-of-use tariff plan",
+        "properties": {
+          "tenantId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "currency": {
+            "type": "string",
+            "minLength": 1
+          },
+          "pricingType": {
+            "type": "string",
+            "enum": ["FIXED", "TIME_OF_USE"]
+          },
+          "timezone": {
+            "type": "string",
+            "minLength": 1
+          },
+          "effectiveFrom": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "effectiveTo": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "periods": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TariffPeriodRequest"
+            },
+            "minItems": 1
+          }
+        },
+        "required": [
+          "currency",
+          "effectiveFrom",
+          "name",
+          "periods",
+          "pricingType",
+          "tenantId",
+          "timezone"
+        ]
+      },
+      "TariffPeriodRequest": {
+        "type": "object",
+        "description": "A price period in local-day minutes",
+        "properties": {
+          "periodType": {
+            "type": "string",
+            "enum": ["PEAK", "FLAT", "VALLEY"]
+          },
+          "startMinute": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "endMinute": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 1
+          },
+          "energyPricePerKwh": {
+            "type": "number",
+            "minimum": 0
+          },
+          "serviceFeePerKwh": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "endMinute",
+          "energyPricePerKwh",
+          "periodType",
+          "serviceFeePerKwh",
+          "startMinute"
+        ]
+      },
+      "ApiResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {}
+        }
+      },
+      "CreateTariffRevisionRequest": {
+        "type": "object",
+        "description": "Create a revision in the source tariff family",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "currency": {
+            "type": "string",
+            "minLength": 1
+          },
+          "pricingType": {
+            "type": "string",
+            "enum": ["FIXED", "TIME_OF_USE"]
+          },
+          "timezone": {
+            "type": "string",
+            "minLength": 1
+          },
+          "effectiveFrom": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "effectiveTo": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "periods": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TariffPeriodRequest"
+            },
+            "minItems": 1
+          }
+        },
+        "required": ["currency", "effectiveFrom", "name", "periods", "pricingType", "timezone"]
+      },
+      "TimeSyncRequest": {
+        "type": "object",
+        "description": "Optional target clock time; the server time is used when absent",
+        "properties": {
+          "targetTime": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ApiResponseCommandCreatedView": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/CommandCreatedView"
+          }
+        }
+      },
+      "CommandCreatedView": {
+        "type": "object",
+        "description": "Identifier of the created asynchronous command",
+        "properties": {
+          "commandId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "StopChargingRequest": {
+        "type": "object",
+        "description": "Remote stop request",
+        "properties": {
+          "connectorNo": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\d{1,2}"
+          }
+        },
+        "required": ["connectorNo"]
+      },
+      "StartChargingRequest": {
+        "type": "object",
+        "description": "Remote start request",
+        "properties": {
+          "connectorNo": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\d{1,2}"
+          },
+          "limitAmount": {
+            "type": "number",
+            "maximum": 21474836.47,
+            "minimum": 0
+          },
+          "logicalCardNo": {
+            "type": "string",
+            "pattern": "\\d{1,16}"
+          },
+          "physicalCardNo": {
+            "type": "string",
+            "pattern": "\\d{1,18}"
+          },
+          "businessRef": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 0
+          }
+        },
+        "required": ["connectorNo", "limitAmount"]
+      },
+      "ResetDeviceRequest": {
+        "type": "object",
+        "description": "Reset behavior",
+        "properties": {
+          "whenIdle": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ApiResponseBillingRecordView": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/BillingRecordView"
+          }
+        }
+      },
+      "BillingRecordView": {
+        "type": "object",
+        "description": "Fixed-rate MVP billing result; FINALIZED records are immutable",
+        "properties": {
+          "billingRecordId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "transactionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "energyKwh": {
+            "type": "number"
+          },
+          "energyFee": {
+            "type": "number"
+          },
+          "serviceFee": {
+            "type": "number"
+          },
+          "subtotalAmount": {
+            "type": "number"
+          },
+          "discountAmount": {
+            "type": "number"
+          },
+          "totalAmount": {
+            "type": "number"
+          },
+          "tariffPlanId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "pricingSnapshot": {
+            "type": "string"
+          },
+          "lineItems": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LineItemView"
+            }
+          },
+          "chargingStartedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "chargingEndedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "finalizedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "LineItemView": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "number"
+          },
+          "unit": {
+            "type": "string"
+          },
+          "unitPrice": {
+            "type": "number"
+          },
+          "amount": {
+            "type": "number"
+          }
+        }
+      },
+      "ApiResponseListTransactionView": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TransactionView"
+            }
+          }
+        }
+      },
+      "TransactionView": {
+        "type": "object",
+        "description": "ChargingTransaction lifecycle state: STARTING, CHARGING, ENDING, COMPLETED, START_FAILED, or ABORTED",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "deviceCode": {
+            "type": "string"
+          },
+          "connectorNo": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "protocol": {
+            "type": "string"
+          },
+          "protocolTransactionId": {
+            "type": "string"
+          },
+          "businessRef": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "endedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "startMeterKwh": {
+            "type": "number"
+          },
+          "endMeterKwh": {
+            "type": "number"
+          },
+          "energyKwh": {
+            "type": "number"
+          },
+          "startSoc": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "latestSoc": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "endSoc": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "chargingDurationSeconds": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "totalAmount": {
+            "type": "number"
+          },
+          "stopCategory": {
+            "type": "string"
+          },
+          "rawStopCode": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "vehicleVin": {
+            "type": "string"
+          },
+          "startMethod": {
+            "type": "string"
+          },
+          "finalRecordReceivedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "additionalInfo": {
+            "type": "string"
+          }
+        }
+      },
+      "ApiResponseTransactionView": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/TransactionView"
+          }
+        }
+      },
+      "ApiResponseListTariffPlanView": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TariffPlanView"
+            }
+          }
+        }
+      },
+      "ApiResponseDeviceView": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/DeviceView"
+          }
+        }
+      },
+      "ConnectorRuntimeView": {
+        "type": "object",
+        "description": "Latest reported runtime state for a connector",
+        "properties": {
+          "connectorNo": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "runtimeStatus": {
+            "type": "string",
+            "enum": [
+              "AVAILABLE",
+              "PLUGGED",
+              "CHARGING",
+              "CHARGE_COMPLETE",
+              "FAULT",
+              "RESERVED",
+              "UNAVAILABLE",
+              "UNKNOWN"
+            ]
+          },
+          "changedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastReportedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "DeviceOperationCapabilitiesView": {
+        "type": "object",
+        "description": "Operations implemented by the device protocol",
+        "properties": {
+          "startCharging": {
+            "type": "boolean"
+          },
+          "stopCharging": {
+            "type": "boolean"
+          },
+          "timeSync": {
+            "type": "boolean"
+          },
+          "reset": {
+            "type": "boolean"
+          }
+        }
+      },
+      "DeviceView": {
+        "type": "object",
+        "description": "Platform device representation",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tenantId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "stationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "deviceCode": {
+            "type": "string"
+          },
+          "deviceName": {
+            "type": "string"
+          },
+          "protocol": {
+            "type": "string"
+          },
+          "protocolVersion": {
+            "type": "string"
+          },
+          "businessStatus": {
+            "type": "string",
+            "enum": ["ENABLED", "DISABLED"]
+          },
+          "onlineStatus": {
+            "type": "string",
+            "enum": ["ONLINE", "OFFLINE", "UNKNOWN"]
+          },
+          "lastSeenAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "connectors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConnectorRuntimeView"
+            }
+          },
+          "capabilities": {
+            "$ref": "#/components/schemas/DeviceOperationCapabilitiesView"
+          }
+        }
+      },
+      "ApiResponseCommandView": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/CommandView"
+          }
+        }
+      },
+      "CommandView": {
+        "type": "object",
+        "description": "DeviceCommand status: CREATED, SENT, ACKED, EXECUTING, SUCCEEDED, FAILED, or TIMEOUT",
+        "properties": {
+          "commandId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "deviceCode": {
+            "type": "string"
+          },
+          "connectorNo": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "businessRef": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "sentAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "ackedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "completedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "failureCode": {
+            "type": "string"
+          },
+          "failureReason": {
+            "type": "string"
+          }
+        }
+      },
+      "ApiResponseVoid": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {}
+        }
+      }
+    }
+  }
+}
